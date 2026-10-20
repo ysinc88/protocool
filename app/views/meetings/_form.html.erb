@@ -1,0 +1,22 @@
+<%= form_with model: meeting do |f| %>
+  <% if meeting.errors.any? %><div class="errors"><%= meeting.errors.full_messages.to_sentence %></div><% end %>
+  <div class="grid-2">
+    <div class="field">
+      <%= f.label :scheduled_at, "מועד" %>
+      <%= f.datetime_local_field :scheduled_at, value: meeting.scheduled_at&.strftime("%Y-%m-%dT%H:%M"), required: true %>
+    </div>
+    <div class="field">
+      <%= f.label :location, "מקום" %>
+      <%= f.text_field :location, placeholder: "למשל: מועדון היישוב / זום" %>
+    </div>
+  </div>
+  <div class="field">
+    <%= f.label :agenda, "סדר יום" %>
+    <%= f.text_area :agenda, rows: 5, placeholder: "- נושא ראשון\n- נושא שני" %>
+    <div class="hint">אפשר להשאיר ריק – נושאים שחברי הוועדה יציעו במייל יופיעו בעמוד הפגישה.</div>
+  </div>
+  <div class="row">
+    <%= f.submit meeting.new_record? ? "קביעת הפגישה" : "שמירה", class: "btn btn-primary" %>
+    <%= link_to "ביטול", meeting.new_record? ? root_path : meeting, class: "btn" %>
+  </div>
+<% end %>

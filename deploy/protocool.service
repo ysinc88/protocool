@@ -1,0 +1,21 @@
+# systemd *user* unit. Install:
+#   sed "s|__APP__|$PWD|; s|__PATH__|$PATH|" deploy/protocool.service > ~/.config/systemd/user/protocool.service
+#   systemctl --user daemon-reload && systemctl --user enable --now protocool
+#   sudo loginctl enable-linger "$USER"     # keep running after logout / start at boot
+[Unit]
+Description=Protocool – committee meeting assistant (http://127.0.0.1:3109)
+After=network-online.target
+
+[Service]
+WorkingDirectory=__APP__
+Environment=PATH=__PATH__
+Environment=RAILS_ENV=development
+Environment=SOLID_QUEUE_IN_PUMA=1
+# Environment=PROTOCOOL_HOSTS=mybox.example.ts.net
+# Environment=PROTOCOOL_VK_DEVICE=1
+ExecStart=__APP__/bin/rails server -p 3109 -b 127.0.0.1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

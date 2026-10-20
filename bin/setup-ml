@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Installs the local speech stack Protocool needs, under $PROTOCOOL_ML_DIR
+# (default ~/.local/share/protocool). Idempotent: re-run any time; finished steps are skipped.
+#
+#   bin/setup-ml            GPU build (Vulkan on Linux, Metal on macOS) when available, else CPU
+#   bin/setup-ml --cpu      force a CPU-only whisper.cpp build
+#
+#   whisper.cpp   speech-to-text engine          $ML/whisper.cpp/build/bin/whisper-cli
+#   models/       ivrit.ai Hebrew whisper-large-v3 (ggml) + an 8-bit copy for small GPUs
+#   sherpa/       sherpa-onnx speaker diarization binary + pyannote segmentation + CAM++ embeddings
+set -euo pipefail
+
+ML=${PROTOCOOL_ML_DIR:-$HOME/.local/share/protocool}
+SHERPA_VERSION=1.13.8
+SHERPA_REL=https://github.com/k2-fsa/sherpa-onnx/releases/download
+MODEL_URL=${PROTOCOOL_MODEL_URL:-https://huggingface.co/ivrit-ai/whisper-large-v3-ggml/resolve/main/ggml-model.bin}
+cpu=false; [[ ${1:-} == --cpu ]] && cpu=true
+
+say() { printf '\n==> %s\n' "$*"; }
+need() { command -v "$1" >/dev/null || { echo "missing: $1 ($2)" >&2; missing=1; }; }
+
+say "Checking tools"
+missing=0
+need git "git"; need cmake "cmake"; need c++ "a C++ compiler (gcc/clang)"; need curl "curl"
+need bzip2 "bzip2"; need ffmpeg "ffmpeg"; need ffprobe "ffmpeg"; need pdftotext "poppler / poppler-utils"; need unzip "unzip"
+[[ $missing == 1 ]] && { echo "Install the missing tools above and re-run." >&2; exit 1; }
+
+os=$(uname -s); arch=$(uname -m)
+case "$os-$arch" in
+  Linux-x86_64) sherpa_pkg=linux-x64 ;;
+  Darwin-arm64) sherpa_pkg=osx-arm64 ;;
+  Darwin-x86_64) sherpa_pkg=osx-x64 ;;
+  *) echo "No prebuilt sherpa-onnx for $os-$arch: build it from https://github.com/k2-fsa/sherpa-onnx and put the binaries in $ML/sherpa/bin" >&2; sherpa_pkg= ;;
+esac
+
+mkdir -p "$ML/models" "$ML/sherpa"
+
+say "Building whisper.cpp"
+W=$ML/whisper.cpp
+[ -d "$W" ] || git clone -q --depth 1 https://github.com/ggml-org/whisper.cpp "$W"
+flags=(-DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_TESTS=OFF)
+if [[ $os == Linux && $cpu == false ]]; then
+  if command -v glslc >/dev/null && { [ -f /usr/include/vulkan/vulkan.h ] || [ -n "${VULKAN_SDK:-}" ]; }; then
+    flags+=(-DGGML_VULKAN=1); echo "GPU: Vulkan"
+  else
+    echo "GPU: Vulkan headers/glslc not found -> CPU build (see README 'GPU' to enable)"
+  fi
+fi
+[[ $cpu == true && $os == Darwin ]] && flags+=(-DGGML_METAL=OFF)
+# shellcheck disable=SC2206
+flags+=(${PROTOCOOL_WHISPER_CMAKE_FLAGS:-})
+if [ ! -x "$W/build/bin/whisper-cli" ] || [ ! -x "$W/build/bin/whisper-quantize" ]; then
+  cmake -S "$W" -B "$W/build" "${flags[@]}" >/dev/null
+  cmake --build "$W/build" -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" --target whisper-cli whisper-quantize
+fi
+
+say "Downloading the Hebrew speech model (~3 GB)"
+M=$ML/models/ggml-ivrit-large-v3.bin
+if [ ! -s "$M" ]; then
+  curl -fL --retry 3 -C - -o "$M.part" "$MODEL_URL"
+  mv "$M.part" "$M"
+fi
+Q=$ML/models/ggml-ivrit-large-v3-q8_0.bin
+[ -s "$Q" ] || { say "Making the 8-bit model copy"; "$W/build/bin/whisper-quantize" "$M" "$Q" q8_0 >/dev/null 2>&1; }
+
+if [ -n "$sherpa_pkg" ]; then
+  say "Downloading speaker diarization (sherpa-onnx $SHERPA_VERSION)"
+  S=$ML/sherpa
+  if [ ! -x "$S/bin/sherpa-onnx-offline-speaker-diarization" ]; then
+    curl -fsL "$SHERPA_REL/v$SHERPA_VERSION/sherpa-onnx-v$SHERPA_VERSION-$sherpa_pkg-static-no-tts.tar.bz2" | tar xj -C "$S"
+    rm -rf "$S/bin"; mv "$S/sherpa-onnx-v$SHERPA_VERSION-$sherpa_pkg-static-no-tts/bin" "$S/bin"
+    rm -rf "$S/sherpa-onnx-v$SHERPA_VERSION-$sherpa_pkg-static-no-tts"
+  fi
+  [ -d "$S/sherpa-onnx-pyannote-segmentation-3-0" ] || curl -fsL "$SHERPA_REL/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2" | tar xj -C "$S"
+  E=3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx
+  [ -s "$S/$E" ] || curl -fsL -o "$S/$E" "$SHERPA_REL/speaker-recongition-models/$E"
+fi
+
+say "Smoke test"
+"$W/build/bin/whisper-cli" -m "$Q" -l en -f "$W/samples/jfk.wav" -nt -np 2>/dev/null | head -c 120; echo
+[ -n "$sherpa_pkg" ] && "$ML/sherpa/bin/sherpa-onnx-offline-speaker-diarization" \
+  --segmentation.pyannote-model="$ML/sherpa/sherpa-onnx-pyannote-segmentation-3-0/model.onnx" \
+  --embedding.model="$ML/sherpa/$E" --clustering.num-clusters=1 "$W/samples/jfk.wav" 2>/dev/null | grep -E '^[0-9.]+ -- ' | head -2
+
+say "Done. Speech stack is in $ML"

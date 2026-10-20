@@ -1,0 +1,42 @@
+<p>שלום <%= @member.first_name %>,</p>
+<p>תזכורת: פגישת <%= Setting.current.committee_name %> תתקיים <strong><%= @meeting.date_label %></strong><%= " ב#{@meeting.location}" if @meeting.location.present? %>.</p>
+
+<% if @meeting.agenda.present? %>
+  <div class="box"><h2>סדר היום (בינתיים)</h2><%= markdown @meeting.agenda %></div>
+<% end %>
+
+<div class="box">
+  <h2>מגיעים?</h2>
+  <p>
+    <a href="<%= @rsvp_links["yes"] %>" style="display:inline-block;background:#2c6e63;color:#ffffff;text-decoration:none;padding:10px 22px;border-radius:8px;font-weight:bold;margin:4px 0 4px 8px">✓ מגיע/ה</a>
+    <a href="<%= @rsvp_links["no"] %>" style="display:inline-block;background:#ffffff;color:#b4423a;border:1px solid #b4423a;text-decoration:none;padding:9px 22px;border-radius:8px;font-weight:bold;margin:4px 0">✗ לא מגיע/ה</a>
+  </p>
+  <p class="muted">הכפתור פותח מייל מוכן – רק לשלוח. אפשר גם פשוט להשיב למייל הזה ולכתוב אם תגיעו.</p>
+  <h2>אילו נושאים תרצו לדון בהם?</h2>
+  <p>כתבו אותם באותה תשובה – הם ייאספו אוטומטית לסדר היום.</p>
+</div>
+
+<% if @open_tasks.any? %>
+  <h2>משימות פתוחות שלך</h2>
+  <ul>
+    <% @open_tasks.each do |t| %>
+      <li><%= t.description %><%= " (עד #{l t.due_on, format: :short_day})" if t.due_on %></li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @previous %>
+  <h2>פרוטוקול הפגישה הקודמת – <%= @previous.date_label %></h2>
+  <% if @previous.summary.present? %>
+    <%= markdown @previous.summary %>
+    <% if @previous.decisions.present? %><h3>החלטות</h3><%= markdown @previous.decisions %><% end %>
+    <% if @previous.tasks.any? %>
+      <h3>משימות</h3>
+      <ul><% @previous.tasks.each do |t| %><li><strong><%= t.assignee_label %>:</strong> <%= t.description %><%= " (עד #{l t.due_on, format: :short_day})" if t.due_on %><%= " ✓" if t.done %></li><% end %></ul>
+    <% end %>
+  <% else %>
+    <div style="white-space: pre-wrap"><%= @previous.protocol_text %></div>
+  <% end %>
+<% end %>
+
+<p>להתראות בפגישה,<br><%= Setting.current.chair_name.presence || Setting.current.committee_name %></p>

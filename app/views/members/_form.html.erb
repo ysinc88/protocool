@@ -1,0 +1,12 @@
+<%= form_with model: member do |f| %>
+  <% if member.errors.any? %><div class="errors"><%= member.errors.full_messages.to_sentence %></div><% end %>
+  <div class="row" style="align-items:flex-end">
+    <div style="flex:1; min-width:160px"><%= f.label :name, "שם" %><%= f.text_field :name, required: true %></div>
+    <div style="flex:1.3; min-width:200px"><%= f.label :email, "מייל" %><%= f.email_field :email, required: true, dir: "ltr" %></div>
+    <div style="flex:1; min-width:140px"><%= f.label :role, "תפקיד (לא חובה)" %><%= f.text_field :role, placeholder: "למשל: נציגת הגן" %></div>
+    <% if member.persisted? %>
+      <div><label><%= f.check_box :active %> פעיל/ה</label></div>
+    <% end %>
+    <%= f.submit member.new_record? ? "הוספה" : "שמירה", class: "btn btn-primary" %>
+  </div>
+<% end %>

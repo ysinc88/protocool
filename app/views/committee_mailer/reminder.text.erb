@@ -1,0 +1,22 @@
+שלום <%= @member.first_name %>,
+
+תזכורת: פגישת <%= Setting.current.committee_name %> תתקיים <%= @meeting.date_label %><%= " ב#{@meeting.location}" if @meeting.location.present? %>.
+<% if @meeting.agenda.present? %>
+סדר היום (בינתיים):
+<%= @meeting.agenda %>
+<% end %>
+מגיעים? השיבו למייל הזה וכתבו "מגיע/ה" או "לא מגיע/ה".
+ואילו נושאים תרצו לדון בהם? כתבו אותם באותה תשובה – הם ייאספו אוטומטית לסדר היום.
+<% if @open_tasks.any? %>
+משימות פתוחות שלך:
+<% @open_tasks.each do |t| %>- <%= t.description %><%= " (עד #{l t.due_on, format: :short_day})" if t.due_on %>
+<% end %><% end %>
+<% if @previous %>
+פרוטוקול הפגישה הקודמת – <%= @previous.date_label %>
+<%= @previous.summary.presence || @previous.protocol_text %>
+<% if @previous.decisions.present? %>
+החלטות:
+<%= @previous.decisions %>
+<% end %><% end %>
+להתראות בפגישה,
+<%= Setting.current.chair_name.presence || Setting.current.committee_name %>

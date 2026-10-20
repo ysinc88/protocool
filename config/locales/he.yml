@@ -1,0 +1,8 @@
+he:
+  time:
+    formats:
+      meeting: "יום %A, %-d ב%B %Y, %H:%M"
+      short_day: "%-d/%-m/%Y"
+  date:
+    formats:
+      short_day: "%-d/%-m/%Y"

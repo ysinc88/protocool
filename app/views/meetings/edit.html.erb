@@ -1,0 +1,6 @@
+<section class="card">
+  <h1>עריכת פגישה</h1>
+  <%= render "form", meeting: @meeting %>
+  <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+  <%= button_to "מחיקת הפגישה", @meeting, method: :delete, class: "btn btn-danger", form: { data: { turbo_confirm: "למחוק את הפגישה, ההקלטות והמשימות שלה?" } } %>
+</section>

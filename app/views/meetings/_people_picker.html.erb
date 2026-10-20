@@ -1,0 +1,11 @@
+<%# Multi-select of committee members as a dropdown of checkboxes. `form:` ties the inputs to a form elsewhere on the page. %>
+<% form = local_assigns[:form] %>
+<details class="people" data-controller="people" data-people-placeholder-value="<%= placeholder %>">
+  <summary data-people-target="label"><%= selected.map(&:name).join(", ").presence || placeholder %></summary>
+  <div class="people-menu">
+    <%= hidden_field_tag "task[member_ids][]", "", form:, id: nil %>
+    <% (members | selected).each do |m| %>
+      <label><%= check_box_tag "task[member_ids][]", m.id, selected.include?(m), form:, id: nil, data: { action: "people#update" } %> <span><%= m.name %></span></label>
+    <% end %>
+  </div>
+</details>

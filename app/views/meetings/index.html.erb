@@ -1,0 +1,85 @@
+<% next_meeting = @upcoming.first %>
+<div class="card-head">
+  <h1>פגישות הוועדה</h1>
+  <%= link_to "+ פגישה חדשה", new_meeting_path, class: "btn btn-primary" %>
+</div>
+
+<% if next_meeting %>
+  <section class="card">
+    <div class="hero">
+      <%= render "date_badge", meeting: next_meeting %>
+      <div style="flex:1; min-width: 220px">
+        <div class="muted small">הפגישה הבאה · <%= relative_day(next_meeting.scheduled_at) %></div>
+        <h2 style="margin:2px 0 6px"><%= link_to next_meeting.date_label, next_meeting %></h2>
+        <div class="row small">
+          <% if next_meeting.location.present? %><span class="muted">📍 <%= next_meeting.location %></span><% end %>
+          <% if next_meeting.reminder_sent_at %>
+            <span class="pill ok">✓ תזכורת נשלחה</span>
+          <% else %>
+            <span class="pill">תזכורת תישלח <%= l next_meeting.reminder_due_at, format: :meeting %></span>
+          <% end %>
+          <% if (yes = next_meeting.rsvps.count { |r| r.status == "yes" }) > 0 || next_meeting.rsvps.any? %><span class="pill ok"><%= yes %>/<%= Member.active.count %> אישרו הגעה</span><% end %>
+          <% if (n = next_meeting.topic_suggestions.size) > 0 %><span class="pill accent"><%= n %> נושאים הוצעו</span><% end %>
+        </div>
+      </div>
+      <%= link_to "לפגישה ←", next_meeting, class: "btn" %>
+    </div>
+  </section>
+<% else %>
+  <section class="card">
+    <h2>אין פגישה מתוכננת</h2>
+    <p class="muted">קבעי את הפגישה הבאה, והסוכן ישלח תזכורת לחברי הוועדה <%= setting.reminder_days_before %> ימים לפני – עם הפרוטוקול האחרון ובקשה להציע נושאים.</p>
+    <%= link_to "קביעת פגישה", new_meeting_path, class: "btn btn-primary" %>
+  </section>
+<% end %>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>משימות פתוחות</h2>
+    <% if @open_tasks.any? %>
+      <ul class="list">
+        <% @open_tasks.each do |t| %>
+          <li>
+            <%= form_with model: [t.meeting, t], class: "inline" do |f| %>
+              <%= f.check_box :done, onchange: "this.form.requestSubmit()", title: "בוצע" %>
+            <% end %>
+            <div class="grow">
+              <div><%= t.description %></div>
+              <div class="muted small"><%= t.assignee_label %><%= " · עד #{l t.due_on, format: :short_day}" if t.due_on %></div>
+            </div>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="muted">אין משימות פתוחות.</p>
+    <% end %>
+  </section>
+
+  <section class="card">
+    <h2>פגישות קודמות</h2>
+    <% if @past.any? %>
+      <ul class="list">
+        <% @past.each do |m| %>
+          <li>
+            <%= link_to m, class: "meeting-link" do %>
+              <%= render "date_badge", meeting: m %>
+              <div>
+                <div><%= l m.scheduled_at, format: :short_day %></div>
+                <div class="small">
+                  <% if m.processed? %><span class="pill ok">פרוטוקול מוכן</span><% elsif m.protocol_text.present? %><span class="pill warn">ממתין לעיבוד</span><% else %><span class="pill">אין פרוטוקול</span><% end %>
+                  <% if m.tasks.any? %><span class="pill"><%= m.tasks.size %> משימות</span><% end %>
+                </div>
+              </div>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="muted">עוד אין פגישות קודמות.</p>
+    <% end %>
+    <% if @upcoming.size > 1 %>
+      <h3 style="margin-top:16px">פגישות מתוכננות נוספות</h3>
+      <ul class="list"><% @upcoming.drop(1).each do |m| %><li><%= link_to m.date_label, m %></li><% end %></ul>
+    <% end %>
+  </section>
+</div>

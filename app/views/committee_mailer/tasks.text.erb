@@ -1,0 +1,14 @@
+שלום <%= @member.first_name %>,
+
+תודה על ההשתתפות בפגישת <%= Setting.current.committee_name %> (<%= @meeting.date_label %>). אלה המשימות שלך מהפגישה:
+
+<% @tasks.each do |t| %>- <%= t.description %><%= " – עד #{l t.due_on, format: :short_day}" if t.due_on %><%= " (יחד עם #{t.co_assignees(@member).map(&:name).to_sentence})" if t.co_assignees(@member).any? %>
+<% end %>
+<% if @meeting.decisions.present? %>
+החלטות הפגישה:
+<%= @meeting.decisions %>
+<% end %>
+אם משהו לא מדויק – השיבו למייל הזה.
+
+תודה!
+<%= Setting.current.chair_name.presence || Setting.current.committee_name %>

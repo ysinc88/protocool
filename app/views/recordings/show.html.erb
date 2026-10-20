@@ -1,0 +1,61 @@
+<% content_for :title, "תמלול – #{@meeting.date_label}" %>
+<p><%= link_to "→ חזרה לפגישה", meeting_path(@meeting, anchor: "recording") %></p>
+
+<section class="card">
+  <div class="card-head">
+    <h1 style="margin:0">תמלול הפגישה</h1>
+    <span class="muted small"><%= @meeting.date_label %><%= " · #{duration_label(@recording.duration_seconds)}" if @recording.duration_seconds %></span>
+  </div>
+  <audio controls preload="none" src="<%= audio_meeting_recording_path(@meeting, @recording) %>" style="width:100%" data-transcript-target="audio" id="player"></audio>
+</section>
+
+<% speakers = @recording.speakers %>
+<section class="card">
+  <h2>מי זה מי?</h2>
+  <p class="muted small">התוכנה הפרידה בין <%= speakers.size %> קולות. בחרי לכל דובר/ת את השם המתאים – לפי הדוגמאות (לחיצה על דוגמה מנגנת אותה).</p>
+  <%= form_with url: meeting_recording_path(@meeting, @recording), method: :patch do %>
+    <ul class="list">
+      <% speakers.each do |code| %>
+        <% idx = code.to_s[/\d+/].to_i %>
+        <% samples = (@recording.segments || []).select { |s| s["speaker"] == code }.sort_by { |s| -(s["end"] - s["start"]) }.first(2) %>
+        <li>
+          <div style="width:110px" class="spk-<%= idx % 8 %>"><b>דובר/ת <%= idx + 1 %></b></div>
+          <div class="grow small muted">
+            <% samples.each do |s| %>
+              <div><a href="#" onclick="const p=document.getElementById('player'); p.currentTime=<%= s['start'] %>; p.play(); return false;">▶</a> „<%= s["text"].truncate(110) %>”</div>
+            <% end %>
+          </div>
+          <div style="width:200px">
+            <% current = (@recording.speaker_names || {})[code] %>
+            <input list="member-names" name="speaker_names[<%= code %>]" value="<%= current %>" placeholder="שם הדובר/ת" type="text">
+          </div>
+        </li>
+      <% end %>
+    </ul>
+    <datalist id="member-names"><% @members.each do |m| %><option value="<%= m.name %>"><% end %></datalist>
+    <div class="row" style="margin-top:12px">
+      <%= submit_tag "שמירת שמות", class: "btn" %>
+    </div>
+  <% end %>
+  <div class="row" style="margin-top:12px">
+    <%= button_to "שימוש בתמלול כפרוטוקול ועיבוד ←", use_as_protocol_meeting_recording_path(@meeting, @recording), class: "btn btn-primary" %>
+    <%= form_with url: retry_meeting_recording_path(@meeting, @recording), class: "row" do %>
+      <label class="small muted" style="margin:0">ההפרדה לא מדויקת? מספר דוברים:</label>
+      <%= number_field_tag :num_speakers, @recording.num_speakers, min: 1, max: 20, style: "width:90px" %>
+      <%= submit_tag "תמלול מחדש", class: "btn btn-sm" %>
+    <% end %>
+  </div>
+</section>
+
+<section class="card transcript">
+  <h2>התמלול</h2>
+  <% (@recording.segments || []).each do |s| %>
+    <% idx = s["speaker"].to_s[/\d+/].to_i %>
+    <div class="seg">
+      <div class="who spk-<%= idx % 8 %>"><%= @recording.speaker_label(s["speaker"]) %>
+        <a class="ts" href="#" onclick="const p=document.getElementById('player'); p.currentTime=<%= s['start'] %>; p.play(); return false;"><%= duration_label(s["start"]) %></a>
+      </div>
+      <div><%= s["text"] %></div>
+    </div>
+  <% end %>
+</section>

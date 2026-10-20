@@ -1,0 +1,23 @@
+default: &default
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+  workers:
+    - queues: [default, mail]
+      threads: 3
+      processes: 1
+      polling_interval: 1
+    # Transcription and Claude calls are heavy: one at a time.
+    - queues: [heavy]
+      threads: 1
+      processes: 1
+      polling_interval: 2
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+
+production:
+  <<: *default

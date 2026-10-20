@@ -1,0 +1,26 @@
+<h1>חברי הוועדה</h1>
+<section class="card">
+  <% if @members.any? %>
+    <ul class="list">
+      <% @members.each do |m| %>
+        <li style="<%= 'opacity:.55' unless m.active %>">
+          <div class="grow">
+            <b><%= m.name %></b><%= " · #{m.role}" if m.role.present? %>
+            <div class="muted small" dir="ltr" style="text-align:right"><%= m.email %></div>
+          </div>
+          <% unless m.active %><span class="pill">לא פעיל/ה</span><% end %>
+          <% open = m.tasks.where(done: false).count %>
+          <% if open > 0 %><span class="pill accent"><%= open %> משימות פתוחות</span><% end %>
+          <%= link_to "עריכה", edit_member_path(m), class: "btn btn-sm" %>
+          <%= button_to "✕", m, method: :delete, class: "btn-link", form: { data: { turbo_confirm: "להסיר את #{m.name}?" } } %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="muted">עוד לא נוספו חברים. הוסיפי את חברי הוועדה – הם יקבלו תזכורות ומשימות למייל.</p>
+  <% end %>
+</section>
+<section class="card">
+  <h2>הוספת חבר/ת ועדה</h2>
+  <%= render "form", member: @member %>
+</section>

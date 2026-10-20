@@ -1,0 +1,5 @@
+<p><%= link_to "→ חזרה לרשימה", members_path %></p>
+<section class="card">
+  <h1>עריכת <%= @member.name %></h1>
+  <%= render "form", member: @member %>
+</section>

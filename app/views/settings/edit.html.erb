@@ -1,0 +1,59 @@
+<h1>הגדרות</h1>
+<%= form_with model: setting, url: settings_path, method: :patch do |f| %>
+  <% if setting.errors.any? %><div class="errors"><%= setting.errors.full_messages.to_sentence %></div><% end %>
+  <section class="card">
+    <h2>הוועדה</h2>
+    <div class="grid-2">
+      <div class="field"><%= f.label :committee_name, "שם הוועדה" %><%= f.text_field :committee_name %></div>
+      <div class="field"><%= f.label :settlement_name, "שם היישוב" %><%= f.text_field :settlement_name %></div>
+      <div class="field"><%= f.label :chair_name, "שם יו״ר הוועדה (לחתימה)" %><%= f.text_field :chair_name %></div>
+      <div class="field"><%= f.label :default_location, "מקום פגישה קבוע" %><%= f.text_field :default_location %></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>תזכורות</h2>
+    <div class="grid-2">
+      <div class="field"><%= f.label :reminder_days_before, "כמה ימים לפני הפגישה" %><%= f.number_field :reminder_days_before, min: 1, max: 14 %></div>
+      <div class="field"><%= f.label :reminder_hour, "באיזו שעה" %><%= f.select :reminder_hour, (6..22).map { |h| ["#{h}:00", h] } %></div>
+    </div>
+    <p class="hint">התזכורת כוללת את פרטי הפגישה, את הפרוטוקול של הפגישה הקודמת, משימות פתוחות, ובקשה להשיב עם נושאים לדיון.</p>
+  </section>
+
+  <section class="card">
+    <h2>חשבון Gmail לשליחה וקבלת תשובות</h2>
+    <div class="grid-2">
+      <div class="field"><%= f.label :gmail_address, "כתובת Gmail" %><%= f.email_field :gmail_address, dir: "ltr", placeholder: "committee@gmail.com" %></div>
+      <div class="field">
+        <%= f.label :gmail_app_password, "App Password" %>
+        <%= f.password_field :gmail_app_password, value: nil, dir: "ltr", autocomplete: "new-password", placeholder: (setting.gmail_app_password.present? ? "•••• שמור – השאירי ריק כדי לא לשנות" : "16 תווים") %>
+      </div>
+    </div>
+    <details>
+      <summary>איך יוצרים App Password?</summary>
+      <ol class="small">
+        <li>נכנסים לחשבון Google של הוועדה ← <a href="https://myaccount.google.com/security" target="_blank">אבטחה</a>, ומוודאים ש<b>אימות דו-שלבי</b> מופעל.</li>
+        <li>נכנסים ל-<a href="https://myaccount.google.com/apppasswords" target="_blank">myaccount.google.com/apppasswords</a>.</li>
+        <li>נותנים שם (למשל "סוכן ועדה") ← יצירה, ומעתיקים לכאן את הסיסמה בת 16 התווים.</li>
+      </ol>
+      <p class="hint">מומלץ חשבון Gmail ייעודי לוועדה: תשובות חברי הוועדה מגיעות אליו והסוכן קורא רק מיילים שהנושא שלהם מכיל [VC-…].</p>
+    </details>
+    <div class="field" style="margin-top:12px">
+      <%= f.label :community_email, "כתובת לשליחת המכתב לקהילה (לא חובה)" %>
+      <%= f.email_field :community_email, dir: "ltr", placeholder: "רשימת התפוצה של היישוב" %>
+      <div class="hint">אם ריק – המכתב יוכן ותוכלי להעתיק אותו לוואטסאפ / לעלון.</div>
+    </div>
+  </section>
+
+  <div class="row"><%= f.submit "שמירת ההגדרות", class: "btn btn-primary" %></div>
+<% end %>
+
+<% if setting.mail_configured? %>
+  <section class="card" style="margin-top:18px">
+    <h2>בדיקות</h2>
+    <div class="row">
+      <%= button_to "שליחת מייל בדיקה אליי", test_email_settings_path, class: "btn" %>
+      <%= button_to "בדיקת תשובות בתיבה עכשיו", poll_inbox_settings_path, class: "btn" %>
+    </div>
+  </section>
+<% end %>

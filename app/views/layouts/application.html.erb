@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+  <head>
+    <title><%= content_for(:title) || setting.title.presence || "ועדת חינוך" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="turbo-refresh-method" content="morph">
+    <meta name="turbo-refresh-scroll" content="preserve">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap">
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <%= link_to root_path, class: "brand" do %>
+          <span class="brand-mark">✎</span>
+          <span><%= setting.committee_name.presence || "ועדת חינוך" %><small><%= setting.settlement_name %></small></span>
+        <% end %>
+        <nav>
+          <%= link_to "פגישות", root_path, class: ("active" if controller_name.in?(%w[meetings recordings])) %>
+          <%= link_to "חברי ועדה", members_path, class: ("active" if controller_name == "members") %>
+          <%= link_to "הגדרות", edit_settings_path, class: ("active" if controller_name == "settings") %>
+        </nav>
+      </div>
+    </header>
+    <main class="container">
+      <% if notice %><div class="flash notice" data-controller="flash"><%= notice %></div><% end %>
+      <% if alert %><div class="flash alert"><%= alert %></div><% end %>
+      <% unless setting.mail_configured? || controller_name == "settings" %>
+        <div class="flash warn">עוד לא הוגדר חשבון Gmail לשליחת מיילים. <%= link_to "להגדרות ←", edit_settings_path %></div>
+      <% end %>
+      <%= yield %>
+    </main>
+  </body>
+</html>

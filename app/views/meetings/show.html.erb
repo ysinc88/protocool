@@ -1,0 +1,266 @@
+<% busy = @meeting.processing? || @recordings.any?(&:busy?) %>
+<div <%= "data-controller=poll" if busy %>>
+
+<section class="card">
+  <div class="hero">
+    <%= render "date_badge", meeting: @meeting %>
+    <div style="flex:1; min-width: 220px">
+      <div class="muted small"><%= relative_day(@meeting.scheduled_at) %></div>
+      <h1 style="margin:2px 0 6px"><%= @meeting.date_label %></h1>
+      <div class="row small">
+        <% if @meeting.location.present? %><span class="muted">📍 <%= @meeting.location %></span><% end %>
+        <% if @meeting.reminder_sent_at %>
+          <span class="pill ok">✓ תזכורת נשלחה <%= l @meeting.reminder_sent_at, format: :short_day %></span>
+        <% elsif !@meeting.held? %>
+          <span class="pill">תזכורת אוטומטית: <%= l @meeting.reminder_due_at, format: :meeting %></span>
+        <% end %>
+      </div>
+    </div>
+    <div class="row">
+      <%= link_to "עריכה", edit_meeting_path(@meeting), class: "btn btn-sm" %>
+    </div>
+  </div>
+  <% unless @meeting.held? %>
+    <div class="row" style="margin-top:14px">
+      <%= link_to "תצוגה מקדימה של התזכורת", reminder_preview_meeting_path(@meeting), class: "btn btn-sm", target: "_blank" %>
+      <%= button_to (@meeting.reminder_sent_at ? "שליחת התזכורת שוב" : "שליחת תזכורת עכשיו"), send_reminder_meeting_path(@meeting), class: "btn btn-sm",
+            form: { data: { turbo_confirm: "לשלוח עכשיו תזכורת ל-#{Member.active.count} חברי הוועדה?" } } %>
+    </div>
+  <% end %>
+</section>
+
+<section class="card" id="attendance">
+  <% members = Member.active.to_a; rsvps = @meeting.rsvps.to_a %>
+  <% counts = rsvps.group_by(&:status).transform_values(&:size) %>
+  <div class="card-head">
+    <h2>אישורי הגעה</h2>
+    <div class="row small">
+      <span class="pill ok"><%= counts["yes"].to_i %> מגיעים</span>
+      <% if counts["no"].to_i > 0 %><span class="pill bad"><%= counts["no"] %> לא מגיעים</span><% end %>
+      <% if counts["maybe"].to_i > 0 %><span class="pill warn"><%= counts["maybe"] %> אולי</span><% end %>
+      <% if (silent = members.count { |m| rsvps.none? { |r| r.member_id == m.id } }) > 0 %><span class="pill"><%= silent %> עוד לא ענו</span><% end %>
+    </div>
+  </div>
+  <% if members.any? %>
+    <ul class="list">
+      <% members.each do |m| %>
+        <% r = rsvps.find { |x| x.member_id == m.id } %>
+        <li>
+          <div class="grow">
+            <b><%= m.name %></b>
+            <% if r&.note.present? %><span class="muted small">· <%= r.note %></span><% end %>
+            <% if r %><div class="muted small"><%= r.source == "manual" ? "עודכן ידנית" : "השיב/ה במייל" %> · <%= l r.responded_at || r.updated_at, format: :short_day %></div><% end %>
+          </div>
+          <%= form_with url: meeting_rsvps_path(@meeting), class: "inline" do %>
+            <%= hidden_field_tag :member_id, m.id, id: nil %>
+            <%= select_tag :status, options_for_select(Rsvp::STATUSES.invert.to_a, r&.status), include_blank: "לא ענה/תה", onchange: "this.form.requestSubmit()", style: "width:auto", id: nil %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+    <p class="hint">התשובות מהמייל מתעדכנות אוטומטית. מי שענה בוואטסאפ או בטלפון – אפשר לעדכן כאן ידנית.</p>
+  <% else %>
+    <p class="muted">אין עדיין חברי ועדה. <%= link_to "הוספת חברים", members_path %></p>
+  <% end %>
+</section>
+
+<section class="card" id="agenda">
+  <div class="card-head">
+    <h2><span class="step">1</span> סדר יום ונושאים שהוצעו</h2>
+    <%= button_to "בדיקת תשובות במייל", poll_inbox_settings_path, class: "btn btn-sm" if setting.mail_configured? %>
+  </div>
+  <div class="grid-2">
+    <div>
+      <%= form_with model: @meeting do |f| %>
+        <%= f.text_area :agenda, rows: 8, placeholder: "- נושא ראשון\n- נושא שני" %>
+        <div class="row" style="margin-top:8px"><%= f.submit "שמירת סדר היום", class: "btn btn-sm" %></div>
+      <% end %>
+    </div>
+    <div>
+      <% topics = @meeting.topic_suggestions.includes(:member).order(:created_at) %>
+      <% if topics.any? %>
+        <ul class="list">
+          <% topics.each do |t| %>
+            <li>
+              <%= form_with model: [@meeting, t], class: "inline" do |f| %>
+                <%= f.check_box :accepted, onchange: "this.form.requestSubmit()", title: "לכלול בסדר היום" %>
+              <% end %>
+              <div class="grow" style="<%= 'opacity:.5' unless t.accepted %>">
+                <div><%= t.body %></div>
+                <div class="muted small"><%= t.author_name %> · <%= l t.created_at, format: :short_day %></div>
+              </div>
+              <%= button_to "✕", meeting_topic_suggestion_path(@meeting, t), method: :delete, class: "btn-link", title: "מחיקה" %>
+            </li>
+          <% end %>
+        </ul>
+        <%= button_to "← הוספת הנושאים המסומנים לסדר היום", add_topics_to_agenda_meeting_path(@meeting), class: "btn btn-sm", style: "margin-top:8px" %>
+      <% else %>
+        <p class="muted small">כשחברי הוועדה ישיבו למייל התזכורת, הנושאים שהציעו יופיעו כאן (התיבה נבדקת כל 10 דקות).</p>
+      <% end %>
+      <details>
+        <summary>הוספת נושא ידנית</summary>
+        <%= form_with model: [@meeting, TopicSuggestion.new] do |f| %>
+          <div class="field"><%= f.text_field :body, placeholder: "הנושא", required: true %></div>
+          <div class="row">
+            <%= f.select :member_id, Member.active.map { |m| [m.name, m.id] }, { include_blank: "מי הציע/ה?" }, style: "width:auto; flex:1" %>
+            <%= f.submit "הוספה", class: "btn btn-sm" %>
+          </div>
+        <% end %>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="recording">
+  <h2><span class="step">2</span> הקלטת הפגישה</h2>
+  <div class="recorder" data-controller="recorder" data-recorder-create-url-value="<%= meeting_recordings_path(@meeting) %>">
+    <button type="button" class="rec-btn" data-action="recorder#toggle" data-recorder-target="button">
+      <span class="dot"></span><span data-recorder-target="label">Record</span>
+    </button>
+    <div class="rec-time" data-recorder-target="time">0:00</div>
+    <div class="meter"><i data-recorder-target="meter"></i></div>
+    <div class="muted small" data-recorder-target="status">לחצי כדי להתחיל להקליט. ההקלטה נשמרת בשרת תוך כדי, כך שגם אם הדפדפן נסגר – לא הולך לאיבוד.</div>
+    <div class="row" data-recorder-target="finishBox" hidden>
+      <label class="small" style="margin:0">כמה משתתפים דיברו?</label>
+      <input type="number" min="1" max="20" data-recorder-target="speakers" placeholder="<%= (n = @meeting.rsvps.count { |r| r.status == "yes" }) > 0 ? "אישרו: #{n}" : "לא ידוע" %>" style="width:110px">
+      <button type="button" class="btn btn-primary btn-sm" data-action="recorder#finish">תמלול</button>
+    </div>
+  </div>
+
+  <% if @recordings.any? %>
+    <ul class="list" style="margin-top:10px">
+      <% @recordings.each_with_index do |r, i| %>
+        <li>
+          <div class="grow">
+            <div>הקלטה <%= i + 1 %> <span class="muted small">· <%= l r.created_at, format: "%H:%M" %><%= " · #{duration_label(r.duration_seconds)}" if r.duration_seconds %> · <%= number_to_human_size r.bytes %></span></div>
+            <% if r.status == "failed" %><div class="small" style="color:var(--danger)"><%= r.error.to_s.truncate(300) %></div><% end %>
+          </div>
+          <% case r.status
+             when "recording" %><span class="pill bad">● מקליט / לא הושלם</span>
+            <%= button_to "תמלול", finish_meeting_recording_path(@meeting, r), class: "btn btn-sm" %>
+          <% when "uploaded" %><span class="pill warn"><span class="spinner"></span> ממתין לתמלול</span>
+          <% when "transcribing" %><span class="pill warn"><span class="spinner"></span> <%= r.progress_label %></span>
+          <% when "done" %><span class="pill ok">✓ תומלל</span>
+            <%= link_to "תמלול ודוברים", meeting_recording_path(@meeting, r), class: "btn btn-sm" %>
+          <% when "failed" %><span class="pill bad">נכשל</span>
+            <%= button_to "ניסיון חוזר", retry_meeting_recording_path(@meeting, r), class: "btn btn-sm" %>
+          <% end %>
+          <%= button_to "✕", meeting_recording_path(@meeting, r), method: :delete, class: "btn-link", title: "מחיקה", form: { data: { turbo_confirm: "למחוק את ההקלטה?" } } %>
+        </li>
+      <% end %>
+    </ul>
+    <% if @recordings.any?(&:done?) %>
+      <div class="row" style="margin-top:10px">
+        <%= button_to "שימוש בתמלול כפרוטוקול ועיבוד ←", use_as_protocol_meeting_recording_path(@meeting, @recordings.find(&:done?)), class: "btn btn-primary",
+              form: { data: { turbo_confirm: (@meeting.protocol_text.present? ? "הפרוטוקול הקיים יוחלף בתמלול. להמשיך?" : nil) } } %>
+        <span class="muted small">כדאי קודם לתת שמות לדוברים בעמוד התמלול.</span>
+      </div>
+    <% end %>
+  <% end %>
+</section>
+
+<section class="card" id="protocol">
+  <h2><span class="step">3</span> פרוטוקול</h2>
+  <p class="muted small">הדביקי את הפרוטוקול או העלי קובץ (Word, PDF או טקסט) – או השתמשי בתמלול ההקלטה. Claude יסדר אותו לפרוטוקול, יפיק משימות לכל חבר/ה ויכתוב מכתב לקהילה.</p>
+  <%= form_with model: @meeting, url: protocol_meeting_path(@meeting), method: :patch, multipart: true do |f| %>
+    <div class="field"><%= f.text_area :protocol_text, rows: 10, placeholder: "טקסט הפרוטוקול…" %></div>
+    <div class="row">
+      <%= f.file_field :protocol_file, accept: ".txt,.md,.docx,.pdf", style: "max-width: 260px" %>
+      <span class="spacer"></span>
+      <%= f.submit "שמירה", class: "btn" %>
+      <%= f.submit "שמירה ועיבוד עם Claude", name: "process", class: "btn btn-primary", disabled: @meeting.processing? %>
+    </div>
+  <% end %>
+  <% if @meeting.processing? %>
+    <p class="flash warn" style="margin:14px 0 0"><span class="spinner"></span> Claude מעבד את הפרוטוקול… (זה לוקח בדרך כלל דקה-שתיים)</p>
+  <% elsif @meeting.processing_status == "failed" %>
+    <p class="flash alert" style="margin:14px 0 0">העיבוד נכשל: <%= @meeting.processing_error.to_s.truncate(400) %></p>
+  <% end %>
+</section>
+
+<% if @meeting.processed? %>
+  <section class="card" id="summary">
+    <div class="card-head">
+      <h2><span class="step">4</span> הפרוטוקול המסודר</h2>
+      <span class="muted small">עובד <%= l @meeting.processed_at, format: :meeting %></span>
+    </div>
+    <div class="prose"><%= markdown @meeting.summary %></div>
+    <% if @meeting.decisions.present? %><h3>החלטות</h3><div class="prose"><%= markdown @meeting.decisions %></div><% end %>
+    <details>
+      <summary>עריכה</summary>
+      <%= form_with model: @meeting do |f| %>
+        <div class="field"><%= f.label :summary, "פרוטוקול (Markdown)" %><%= f.text_area :summary, rows: 14 %></div>
+        <div class="field"><%= f.label :decisions, "החלטות" %><%= f.text_area :decisions, rows: 5 %></div>
+        <%= f.submit "שמירה", class: "btn btn-sm" %>
+      <% end %>
+    </details>
+  </section>
+
+  <section class="card" id="tasks">
+    <div class="card-head">
+      <h2><span class="step">5</span> משימות</h2>
+      <% pending = @meeting.tasks.flat_map(&:assignments).select { |a| a.emailed_at.nil? } %>
+      <% if pending.any? %>
+        <%= button_to "שליחת משימות במייל (#{pending.map(&:member_id).uniq.size} חברים)", send_tasks_meeting_path(@meeting), class: "btn btn-primary btn-sm",
+              form: { data: { turbo_confirm: "לשלוח לכל אחד/ת את המשימות שלו/ה?" } } %>
+      <% elsif @meeting.tasks_sent_at %>
+        <span class="pill ok">✓ נשלחו <%= l @meeting.tasks_sent_at, format: :short_day %></span>
+      <% end %>
+    </div>
+    <div class="table-wrap">
+      <table class="tasks">
+        <thead><tr><th style="width:30px"></th><th>משימה</th><th style="width:170px">אחראי/ת</th><th style="width:150px">עד</th><th style="width:90px"></th></tr></thead>
+        <tbody>
+          <% @meeting.tasks.includes(:assignments, :members).each do |t| %>
+            <tr>
+              <td><%= form_with model: [@meeting, t], id: "task_#{t.id}" do |f| %><% end %><%= hidden_field_tag "task[done]", "0", form: "task_#{t.id}", id: nil %><%= check_box_tag "task[done]", "1", t.done, form: "task_#{t.id}", onchange: "this.form.requestSubmit()", title: "בוצע", id: nil %></td>
+              <td><%= text_area_tag "task[description]", t.description, form: "task_#{t.id}", rows: 2, style: "min-height:40px" %></td>
+              <td>
+                <%= render "people_picker", members: @members, selected: t.members.to_a, form: "task_#{t.id}",
+                      placeholder: (t.assignee_name.present? && t.members.empty? ? "? #{t.assignee_name}" : "לא שויך") %>
+                <% if t.emailed_at %><div class="muted small">✓ נשלח<%= " (לא לכולם)" if t.assignments.any? { |a| a.emailed_at.nil? } %></div><% end %>
+              </td>
+              <td><%= date_field_tag "task[due_on]", t.due_on, form: "task_#{t.id}" %></td>
+              <td class="row" style="flex-wrap:nowrap">
+                <button type="submit" form="task_<%= t.id %>" class="btn btn-sm">שמירה</button>
+                <%= button_to "✕", meeting_task_path(@meeting, t), method: :delete, class: "btn-link", title: "מחיקה" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <details>
+      <summary>הוספת משימה</summary>
+      <%= form_with model: [@meeting, Task.new] do |f| %>
+        <div class="row">
+          <%= f.text_field :description, placeholder: "המשימה", required: true, style: "flex:2; min-width:200px" %>
+          <div style="flex:1; min-width:140px"><%= render "people_picker", members: @members, selected: [], placeholder: "אחראים" %></div>
+          <%= f.date_field :due_on, style: "flex:1; min-width:140px" %>
+          <%= f.submit "הוספה", class: "btn btn-sm" %>
+        </div>
+      <% end %>
+    </details>
+  </section>
+
+  <section class="card" id="letter">
+    <div class="card-head">
+      <h2><span class="step">6</span> מכתב לקהילה</h2>
+      <div class="row">
+        <button type="button" class="btn btn-sm" data-controller="clipboard" data-clipboard-text-value="<%= @meeting.community_letter %>" data-action="clipboard#copy">העתקה</button>
+        <% if setting.community_email.present? %>
+          <%= button_to (@meeting.letter_sent_at ? "שליחה שוב" : "שליחה ל-#{setting.community_email}"), send_letter_meeting_path(@meeting), class: "btn btn-primary btn-sm",
+                form: { data: { turbo_confirm: "לשלוח את המכתב ל-#{setting.community_email}?" } } %>
+        <% end %>
+      </div>
+    </div>
+    <% if @meeting.letter_sent_at %><p><span class="pill ok">✓ נשלח <%= l @meeting.letter_sent_at, format: :meeting %></span></p><% end %>
+    <%= form_with model: @meeting do |f| %>
+      <%= f.text_area :community_letter, rows: 12 %>
+      <div class="row" style="margin-top:8px"><%= f.submit "שמירת המכתב", class: "btn btn-sm" %>
+        <% unless setting.community_email.present? %><span class="muted small">כדי לשלוח ישירות, הגדירי כתובת מייל של הקהילה ב<%= link_to "הגדרות", edit_settings_path %>.</span><% end %>
+      </div>
+    <% end %>
+  </section>
+<% end %>
+</div>
